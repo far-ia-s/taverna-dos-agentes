@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Taverna dos Agentes</title>
+<meta name="description" content="Uma taverna medieval animada onde os seus agentes de IA trabalham, bebem, se reúnem e cochilam.">
+<meta name="theme-color" content="#24150a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Taverna">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icones/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icones/icone-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Cinzel+Decorative:wght@900&display=swap" rel="stylesheet">
+<style>
+  /* Taverna dos Agentes · open source · licença MIT */
+  :root { --ouro: #f2c65a; --ouro2: #a8782a; --perg: #ead7a6; --tinta: #2a1a0c; --fundo: url(arte/fundo/taverna.jpg);
+          --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); --sl: env(safe-area-inset-left, 0px); --sr: env(safe-area-inset-right, 0px); }
+  @property --k { syntax: '<number>'; inherits: false; initial-value: 1; }
+  * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #0b0603; color: var(--perg); font: 700 12px Cinzel, Georgia, serif; overflow: hidden;
+               -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+  body { display: flex; flex-direction: column; height: 100dvh; }
+
+  /* HUD: duas linhas no celular em pé, uma linha deitado */
+  #hud { position: relative; z-index: 5; flex: none; padding: calc(6px + var(--st)) calc(10px + var(--sr)) 6px calc(10px + var(--sl));
+         background: linear-gradient(#4a2e14, #24150a); border-bottom: 3px solid var(--ouro2); box-shadow: 0 3px 0 #000, inset 0 1px 0 #f2c65a55;
+         display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'b t r' 'q q q' 'k k k'; align-items: center; gap: 4px 8px; }
+  .brasao { grid-area: b; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; color: var(--tinta);
+            background: radial-gradient(#ffe7a0, #c79a3a); border: 3px solid #6b4a1c; box-shadow: 0 0 0 2px var(--ouro), 0 0 12px #ffcf5a88; }
+  .titulo { grid-area: t; font: 900 18px 'Cinzel Decorative', Cinzel, serif; color: var(--ouro); letter-spacing: .5px; text-shadow: 0 2px 0 #000, 0 0 10px #ffb84a66;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .relogio { grid-area: r; font-size: 14px; color: var(--ouro); padding: 2px 8px; border: 2px solid var(--ouro2); background: #0007; border-radius: 4px; }
+  .quem { grid-area: q; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .botoes { grid-area: k; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 44px; gap: 6px; min-width: 0; }
+  .botao { min-width: 0; font: 700 11.5px Cinzel, serif; color: var(--tinta); background: linear-gradient(#ffe7a0, #c79a3a); border: 2px solid #6b4a1c; border-radius: 6px;
+           padding: 8px 6px; min-height: 40px; cursor: pointer; box-shadow: 0 2px 0 #000; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .botao:active { transform: translateY(1px); box-shadow: 0 1px 0 #000; }
+  .botao.ativo { background: linear-gradient(#ff9a6a, #b8402a); color: #fff; }
+  .ouro { color: var(--ouro); } .apagado { color: #9a8a68; }
+  @media (min-width: 700px) {
+    #hud { grid-template-columns: auto auto 1fr auto auto; grid-template-areas: 'b t q k r'; }
+    .botoes { grid-template-columns: repeat(3, auto) 44px; }
+    .botao { min-height: 34px; padding: 5px 12px; }
+  }
+
+  /* janela: no celular a taverna enche a altura e você arrasta para os lados; o botão ⤢ mostra inteira */
+  #janela { flex: 1; min-height: 0; position: relative; overflow: auto; display: flex; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; scrollbar-width: none; }
+  #janela::-webkit-scrollbar { display: none; }
+  #mundo { position: relative; flex: none; margin: auto; }
+  #palco { position: absolute; left: 0; top: 0; width: 1600px; height: 900px; overflow: hidden; background: #000; transform-origin: 0 0; }
+  #fundo { position: absolute; inset: 0; background: var(--fundo) 0 0 / 1600px 900px; }
+  .frente { position: absolute; inset: 0; pointer-events: none; background: var(--fundo) 0 0 / 1600px 900px; }
+  .peca { position: absolute; transform: translate(-50%, -100%) scale(var(--k)); transform-origin: 50% 100%; pointer-events: none; }
+  .peca svg { display: block; overflow: visible; }
+  #dica { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 4; padding: 6px 12px; border-radius: 20px; font-size: 11px;
+          background: #000c; border: 1px solid var(--ouro2); color: var(--perg); pointer-events: none; transition: opacity .6s; white-space: nowrap; }
+
+  .rabo { transform-box: fill-box; transform-origin: 0 50%; animation: rabo 3s ease-in-out infinite alternate; }
+  @keyframes rabo { to { transform: rotate(12deg); } }
+  .respira { transform-box: fill-box; transform-origin: 50% 100%; animation: resp 3s ease-in-out infinite; }
+  @keyframes resp { 50% { transform: scaleY(1.05); } }
+
+  /* personagens */
+  .ator { position: absolute; transform: translate(-50%, -100%) scale(var(--k)); transform-origin: 50% 100%; cursor: pointer;
+          transition: left 2.6s linear, top 2.6s linear, --k 2.6s linear; }
+  .ator .corpo { position: relative; animation: respira 3s ease-in-out infinite; }
+  .ator .corpo img, .ator .corpo svg { display: block; height: 192px; width: auto; filter: drop-shadow(0 4px 3px #0008); }
+  .ator:before { content: ''; position: absolute; left: 50%; bottom: -6px; width: 70%; height: 14px; transform: translateX(-50%); border-radius: 50%; background: radial-gradient(#0007, #0000 70%); }
+  .ator.vira .corpo img, .ator.vira .corpo svg { transform: scaleX(-1); }
+  .ator.anda .corpo { animation: passo .3s ease-in-out infinite; }
+  .ator.sel .corpo img, .ator.sel .corpo svg { filter: drop-shadow(0 0 7px #ffcf5acc) drop-shadow(0 4px 3px #0008); }
+  @keyframes respira { 50% { transform: translateY(-2px); } }
+  @keyframes passo { 50% { transform: translateY(-5px); } }
+  .ator .nome { position: absolute; left: 50%; top: 0; transform: translate(-50%, -100%); white-space: nowrap; pointer-events: none;
+                font-size: calc(15px / var(--e, 1)); padding: 0 calc(5px / var(--e, 1)); background: #000b; border: 1px solid var(--ouro2); color: var(--perg); border-radius: 3px; }
+  .ator.sel .nome { background: var(--ouro); color: #1a1206; box-shadow: 0 0 10px #ffcf5a; }
+  .ator .balao { position: absolute; left: 50%; top: 0; transform: translate(-50%, -100%) scale(0); transform-origin: 50% 100%; margin-top: calc(-28px / var(--e, 1));
+                 white-space: nowrap; padding: calc(4px / var(--e, 1)) calc(10px / var(--e, 1)); font-size: calc(16px / var(--e, 1)); color: var(--tinta);
+                 background: linear-gradient(#fbf0cf, #e6d09a); border: 2px solid var(--ouro2); border-radius: 8px; box-shadow: 0 3px 0 #0007; transition: transform .25s; pointer-events: none; z-index: 2; }
+  .ator .balao.mostra { transform: translate(-50%, -100%) scale(1); }
+  .ator .zzz { position: absolute; right: 10px; top: 20px; color: #cfe0ff; font-size: 18px; opacity: 0; pointer-events: none; }
+  .ator.zz .zzz { animation: zz 2.4s infinite; }
+  .ator.zz .corpo img { filter: brightness(.8) drop-shadow(0 4px 3px #0008); }
+  @keyframes zz { 0% { transform: translate(0, 0); opacity: 0; } 30% { opacity: 1; } 100% { transform: translate(16px, -30px); opacity: 0; } }
+
+  /* luz e clima */
+  #luz, #noite, #vinheta, #poeira { position: absolute; inset: 0; pointer-events: none; }
+  #noite { background: #14103a; mix-blend-mode: multiply; opacity: 0; transition: opacity 2s; z-index: 1990; }
+  .noite #noite { opacity: .4; }
+  #luz { z-index: 1995; mix-blend-mode: screen; animation: tremula 3.3s ease-in-out infinite alternate; }
+  @keyframes tremula { 30% { opacity: .9; } 60% { opacity: 1; } 100% { opacity: .85; } }
+  #vinheta { z-index: 1999; background: radial-gradient(ellipse 75% 72% at 50% 46%, #0000 60%, #000a 100%); }
+  #poeira { z-index: 1996; }
+  .grao { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffe2a0; opacity: 0; box-shadow: 0 0 4px #ffcf6a; animation: grao linear infinite; }
+  @keyframes grao { 0% { transform: translate(0, 0); opacity: 0; } 15% { opacity: .7; } 85% { opacity: .5; } 100% { transform: translate(40px, -140px); opacity: 0; } }
+  .faisca { position: absolute; width: 3px; height: 3px; border-radius: 50%; background: #ffb84a; box-shadow: 0 0 6px #ff7a1a; animation: faisca 2.6s ease-out infinite; opacity: 0; }
+  @keyframes faisca { 0% { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } 100% { transform: translate(var(--dx), -150px); opacity: 0; } }
+
+  /* pergaminhos: ficha (embaixo), organograma e conselho (tela cheia) */
+  .perg { position: fixed; z-index: 50; display: none; color: var(--tinta); background: linear-gradient(#f6e7bf, #dcc28a);
+          border: 3px solid var(--ouro2); border-radius: 10px; box-shadow: 0 6px 0 #0009, 0 0 30px #000; }
+  .perg.mostra { display: block; }
+  .perg h3 { margin: 0 0 6px; font: 900 19px 'Cinzel Decorative', Cinzel, serif; color: #5a3410; padding-right: 40px; }
+  .fechar { position: absolute; right: 8px; top: 8px; width: 36px; height: 36px; border-radius: 50%; border: 2px solid #6b4a1c; background: #2a1a0c; color: var(--ouro);
+            font: 900 16px Cinzel, serif; cursor: pointer; }
+  #ficha { left: calc(10px + var(--sl)); right: calc(10px + var(--sr)); bottom: calc(44px + var(--sb)); padding: 12px 16px; max-width: 420px; margin: 0 auto; }
+  #ficha p { margin: 3px 0; font: 600 13px Georgia, serif; }
+  #ficha .st { display: inline-block; margin-top: 6px; padding: 3px 9px; border-radius: 4px; background: #2a1a0c; color: var(--perg); font-size: 12px; }
+  #lista, #ata { left: calc(8px + var(--sl)); right: calc(8px + var(--sr)); top: calc(8px + var(--st)); bottom: calc(44px + var(--sb)); overflow: auto;
+                 -webkit-overflow-scrolling: touch; padding: 14px 16px; max-width: 560px; margin: 0 auto; }
+  #lista .resumo { margin: 0 0 8px; font: 600 12px Georgia, serif; }
+  #lista ul { list-style: none; margin: 0; padding-left: 14px; }
+  #lista ul.raiz { padding-left: 0; }
+  #lista li { position: relative; padding: 4px 0 4px 14px; }
+  #lista li:before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 1px solid #8a6a3a; }
+  #lista li:last-child:before { bottom: auto; height: 15px; }
+  #lista li:after { content: ''; position: absolute; left: 0; top: 15px; width: 10px; border-top: 1px solid #8a6a3a; }
+  #lista ul.raiz > li { padding-left: 0; }
+  #lista ul.raiz > li:before, #lista ul.raiz > li:after { display: none; }
+  #lista .no { cursor: pointer; font-size: 13px; line-height: 1.5; }
+  #lista .no b { color: #3a2210; }
+  #lista .no small { font: 600 11.5px Georgia, serif; color: #6b4a24; }
+  #lista .st { font-style: normal; font-size: 10.5px; padding: 1px 6px; border-radius: 3px; background: #2a1a0c; color: var(--perg); white-space: nowrap; }
+  #ata p { font: 600 13px/1.5 Georgia, serif; }
+  #ata .sub { font: 600 11.5px Georgia, serif; color: #6b4a24; margin: 0 0 6px; }
+
+  /* rodapé */
+  #rodape { flex: none; text-align: center; padding: 8px 10px calc(8px + var(--sb)); font: 600 11px Georgia, serif; color: #9a8a68;
+            background: #120a04; border-top: 1px solid #3a2410; position: relative; z-index: 60; }
+  #rodape a { color: var(--ouro); text-decoration: none; }
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="brasao">🍺</div>
+  <div class="titulo" id="titulo"></div>
+  <div class="quem" id="quem"></div>
+  <div class="botoes">
+    <button class="botao" id="btLista"></button>
+    <button class="botao" id="reuniao"></button>
+    <button class="botao" id="btConselho"></button>
+    <button class="botao" id="btVer">⤢</button>
+  </div>
+  <div class="relogio" id="relogio">--:--</div>
+</div>
+<div id="janela"><div id="mundo"><div id="palco">
+  <div id="fundo"></div>
+  <div id="cena"></div>
+  <div id="noite"></div>
+  <svg id="luz" viewBox="0 0 1600 900" width="1600" height="900"></svg>
+  <div id="poeira"></div>
+  <div id="vinheta"></div>
+</div></div></div>
+<div id="dica"></div>
+<div id="ficha" class="perg"></div>
+<div id="lista" class="perg"></div>
+<div id="ata" class="perg"></div>
+<footer id="rodape">Developed by <a href="https://www.instagram.com/agenciasaomiguel/" target="_blank" rel="noopener">Agência SMA</a></footer>
+<script src="config.js"></script>
+<script>
+  var CFG = self.TAVERNA || { agentes: [] }
+  // textos padrão; o config.js pode trocar qualquer um
+  var T = Object.assign({ idioma: 'pt-BR', abrindo: 'Abrindo as portas…', botaoLista: '📜 Agentes', botaoReuniao: '🍺 Reunião', botaoConselho: '⚜ Conselho',
+    botaoEncerrar: '✖ Encerrar', verInteira: 'Ver a taverna inteira ou de perto', dica: '👆 Arraste para os lados · toque num agente',
+    dia: 'Dia de trabalho na taverna', noite: '💤 Noite: a turma descansa', emReuniao: '🍺 Todo mundo na Mesa Grande', emConselho: '⚜ O Conselho está reunido',
+    stTaverna: '🍺 Na taverna', stReuniao: '🍺 Em reunião', stConselho: '⚜ No Conselho', stDescanso: '💤 Descansando', organograma: 'Organograma',
+    organogramaDica: 'Toque num nome para achar o agente na taverna.', voce: 'Você', voceFaz: 'aprova', conselhoTitulo: '⚜ Reunião do Conselho' }, CFG.textos || {})
+  var AG = {}
+  ;(CFG.agentes || []).forEach(function (g) { if (g && g.id) AG[g.id] = g })
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] }) }
+  var semente = 7
+  function rnd() { semente = (semente * 16807) % 2147483647; return (semente - 1) / 2147483646 }
+  var O = 'stroke="#2a1a0c" stroke-width="2.5" stroke-linejoin="round"'
+
+  // textos fixos da tela, vindos do config.js
+  document.documentElement.lang = T.idioma || 'pt-BR'
+  document.title = CFG.titulo || 'Taverna dos Agentes'
+  document.getElementById('titulo').textContent = document.title
+  document.getElementById('quem').textContent = T.abrindo || ''
+  document.getElementById('btLista').textContent = T.botaoLista || '📜'
+  document.getElementById('reuniao').textContent = T.botaoReuniao || '🍺'
+  document.getElementById('btConselho').textContent = T.botaoConselho || '⚜'
+  document.getElementById('btVer').title = T.verInteira || ''
+  document.getElementById('dica').textContent = T.dica || ''
+
+  // ================= coordenadas: medidas na imagem do fundo (1376 x 768), convertidas para o palco (1600 x 900) =================
+  var SX = 1600 / 1376, SY = 900 / 768
+  var kY = (y) => 0.5 + (y - 330) / 420 * 0.24
+  function L(x, y, onde, extra) {
+    var p = { x: x * SX, y: y * SY, k: kY(y), z: Math.round(y * SY), onde: onde }
+    for (var c in extra) p[c] = extra[c]
+    return p
+  }
+
+  // ================= as mesas do fundo: recorte da frente (cobre as pernas) e os lugares =================
+  // trocou a imagem do fundo? meça de novo estes pontos (em pixels da imagem 1376 x 768)
+  var MESAS = [
+    { id: 'mesa-esquerda', nome: 'Mesa da Esquerda', frente: [[465, 311], [590, 313], [575, 388], [560, 437], [452, 437], [440, 388]],
+      atras: [[495, 340], [552, 342]], bancos: [[424, 426], [598, 426]] },
+    { id: 'mesa-direita', nome: 'Mesa da Direita', frente: [[768, 312], [890, 314], [897, 392], [882, 437], [790, 437], [778, 392]],
+      atras: [[802, 342], [858, 344]], bancos: [[912, 426]] },
+    { id: 'mesa-grande', nome: 'Mesa Grande', frente: [[485, 460], [855, 460], [870, 556], [470, 556]],
+      atras: [[522, 484], [576, 484], [630, 484], [748, 484], [802, 484], [852, 484]],
+      bancos: [[455, 578], [888, 578], [532, 640], [588, 640], [786, 640], [842, 640]] },
+    { id: 'mesa-lareira', nome: 'Mesa da Lareira', frente: [[126, 522], [310, 544], [240, 705], [150, 740], [40, 720], [26, 664]],
+      atras: [[168, 550], [222, 556], [276, 562]], bancos: [[292, 690]] },
+    { id: 'mesa-canto', nome: 'Mesa do Canto', frente: [[1078, 572], [1376, 558], [1376, 740], [1160, 740], [1150, 705]],
+      atras: [[1132, 594], [1200, 590], [1268, 586]], bancos: [[1098, 720]] },
+    { id: 'balcao', nome: 'Atrás do balcão', frente: [[1132, 412], [1322, 412], [1318, 528], [1140, 528]],
+      atras: [[1236, 434], [1180, 438], [1290, 438]], bancos: [] }
+  ]
+  var PORTA = [L(948, 388, 'Na porta'), L(1003, 370, 'Na porta')]
+
+  // ================= quem não tem sprite: desenhado aqui, com as cores do config =================
+  function figura(id) {
+    var c = (AG[id] && AG[id].cores) || {}, pele = c.pele || '#f2cfae', roupa = c.roupa || '#6b4424'
+    var s = '<svg width="103" height="192" viewBox="0 0 103 192">'
+    s += '<path d="M14 192 L18 118 Q22 92 51 88 Q80 92 84 118 L88 192 Z" fill="' + esc(roupa) + '" ' + O + '/>'
+    s += '<path d="M20 116 Q10 150 30 164 L40 158 Q30 146 33 122 Z" fill="' + esc(roupa) + '" ' + O + '/><path d="M82 116 Q92 150 72 164 L62 158 Q72 146 69 122 Z" fill="' + esc(roupa) + '" ' + O + '/>'
+    s += '<circle cx="35" cy="162" r="6" fill="' + esc(pele) + '" ' + O + '/><circle cx="67" cy="162" r="6" fill="' + esc(pele) + '" ' + O + '/>'
+    s += '<rect x="44" y="74" width="14" height="18" fill="' + esc(pele) + '" ' + O + '/>'
+    s += '<ellipse cx="25" cy="56" rx="5" ry="7" fill="' + esc(pele) + '" ' + O + '/><ellipse cx="77" cy="56" rx="5" ry="7" fill="' + esc(pele) + '" ' + O + '/>'
+    s += '<ellipse cx="51" cy="52" rx="26" ry="28" fill="' + esc(pele) + '" ' + O + '/>'
+    s += '<ellipse cx="41" cy="54" rx="4" ry="5" fill="#fff" stroke="#2a1a0c" stroke-width="1.5"/><circle cx="42" cy="55" r="2.5" fill="#2a1a0c"/>'
+    s += '<ellipse cx="61" cy="54" rx="4" ry="5" fill="#fff" stroke="#2a1a0c" stroke-width="1.5"/><circle cx="62" cy="55" r="2.5" fill="#2a1a0c"/>'
+    s += '<ellipse cx="34" cy="64" rx="4" ry="2.5" fill="#e88a8a" opacity=".55"/><ellipse cx="68" cy="64" rx="4" ry="2.5" fill="#e88a8a" opacity=".55"/>'
+    s += '<path d="M43 69 Q51 76 59 69" fill="none" stroke="#2a1a0c" stroke-width="2.2" stroke-linecap="round"/>'
+    return s + '</svg>'
+  }
+
+  var gato = '<svg width="80" height="46" viewBox="0 0 80 46"><path class="rabo" d="M60 36 Q78 36 76 22 Q74 14 68 18" fill="none" stroke="#d07a2a" stroke-width="6" stroke-linecap="round"/>' +
+    '<g class="respira"><ellipse cx="40" cy="32" rx="26" ry="13" fill="#e08a36" stroke="#4a2a12" stroke-width="2"/><path d="M26 26 q6 -4 10 2 M40 22 q6 -3 10 3" stroke="#b05a1a" stroke-width="2" fill="none"/></g>' +
+    '<circle cx="18" cy="30" r="11" fill="#e08a36" stroke="#4a2a12" stroke-width="2"/><polygon points="10,23 11,12 18,20" fill="#e08a36" stroke="#4a2a12" stroke-width="2"/><polygon points="22,20 28,11 28,24" fill="#e08a36" stroke="#4a2a12" stroke-width="2"/>' +
+    '<path d="M12 31 q3 2 5 0 M20 31 q3 2 5 0" stroke="#2a1a0c" stroke-width="1.6" fill="none"/><circle cx="18" cy="35" r="1.3" fill="#c55"/></svg>'
+
+  // Mesa do Conselho: redonda, perto da lareira
+  var mesaConselho = '<svg width="170" height="92" viewBox="0 0 170 92"><defs>' +
+    '<radialGradient id="gTampo" cx=".45" cy=".35"><stop offset="0" stop-color="#b07a42"/><stop offset=".7" stop-color="#7a4a22"/><stop offset="1" stop-color="#4a2a12"/></radialGradient>' +
+    '<radialGradient id="gVela"><stop offset="0" stop-color="#fff3b0"/><stop offset="1" stop-color="#ffb84a" stop-opacity="0"/></radialGradient></defs>' +
+    '<ellipse cx="85" cy="88" rx="62" ry="5" fill="#0006"/>' +
+    '<path d="M44 44 L38 88 M126 44 L132 88 M85 50 L85 89" stroke="#3a2210" stroke-width="7" stroke-linecap="round"/>' +
+    '<path d="M44 44 L38 88 M126 44 L132 88 M85 50 L85 89" stroke="#6b4424" stroke-width="3" stroke-linecap="round"/>' +
+    '<ellipse cx="85" cy="40" rx="80" ry="22" fill="#4a2a12" ' + O + '/>' +
+    '<ellipse cx="85" cy="35" rx="80" ry="22" fill="url(#gTampo)" ' + O + '/>' +
+    '<ellipse cx="85" cy="35" rx="64" ry="15" fill="none" stroke="#c79a3a" stroke-width="1.5" opacity=".6"/>' +
+    '<path d="M52 34 L84 27 L96 39 L64 46 Z" fill="#f2e2b6" stroke="#8a6a3a" stroke-width="1.2"/><path d="M58 36 L82 31 M60 40 L86 35 M62 43 L80 39" stroke="#8a6a3a" stroke-width="1" opacity=".7"/>' +
+    '<circle cx="118" cy="12" r="14" fill="url(#gVela)"/><rect x="114" y="14" width="8" height="18" rx="1" fill="#f6ecd0" stroke="#8a6a3a"/><ellipse cx="118" cy="32" rx="9" ry="3" fill="#c79a3a" stroke="#6b4a1c"/>' +
+    '<path d="M118 6 Q115 11 118 14 Q121 11 118 6 Z" fill="#ffcf5a"/>' +
+    '<ellipse cx="104" cy="40" rx="5" ry="2.5" fill="#f2c65a" stroke="#a8782a"/><ellipse cx="108" cy="37" rx="5" ry="2.5" fill="#f2c65a" stroke="#a8782a"/>' +
+    '<text x="85" y="55" text-anchor="middle" font-family="Cinzel, serif" font-weight="900" font-size="9" fill="#f2c65a" stroke="#2a1a0c" stroke-width=".4">⚜ CONSELHO ⚜</text></svg>'
+  var CC = CFG.conselho || {}
+  var CONS = { mesa: L(325, 478, 'Mesa do Conselho'), membros: (CC.membros || []).filter(function (id) { return AG[id] }).slice(0, 3), lugares: {} }
+  ;[L(325, 452, 'Mesa do Conselho'), L(284, 476, 'Mesa do Conselho'), L(372, 470, 'Mesa do Conselho')].forEach(function (p, i) { if (CONS.membros[i]) CONS.lugares[CONS.membros[i]] = p })
+
+  function luzes(noite) {
+    var f = noite ? 1.3 : 1
+    var g = function (id, cor, a) { return '<radialGradient id="' + id + '"><stop offset="0" stop-color="' + cor + '" stop-opacity="' + (a * f).toFixed(2) + '"/><stop offset="1" stop-color="' + cor + '" stop-opacity="0"/></radialGradient>' }
+    var h = '<defs>' + g('lL', '#ffcf7a', .32) + g('lF', '#ff8a2a', .45) + g('lV', '#ffd98a', .3) + '</defs>'
+    var e = function (x, y, rx, ry, id) { return '<ellipse cx="' + (x * SX).toFixed(0) + '" cy="' + (y * SY).toFixed(0) + '" rx="' + rx + '" ry="' + ry + '" fill="url(#' + id + ')"/>' }
+    h += e(690, 110, 420, 300, 'lL') + e(140, 420, 240, 210, 'lF')
+    ;[[462, 212], [903, 212], [95, 318], [168, 278]].forEach(function (p) { h += e(p[0], p[1], 90, 90, 'lV') })
+    ;[[515, 325], [830, 330], [600, 488], [645, 485], [175, 585], [1213, 600]].forEach(function (p) { h += e(p[0], p[1], 70, 60, 'lV') })
+    return h
+  }
+
+  // ================= montar a cena =================
+  var A = {}, reuniao = false, conselho = false, noiteAgora = null, selecionado = null
+  var cena = document.getElementById('cena')
+  function peca(html, x, y, k, z) {
+    var d = document.createElement('div')
+    d.className = 'peca'
+    d.style.cssText = 'left:' + x + 'px;top:' + y + 'px;--k:' + k + ';z-index:' + Math.round(z)
+    d.innerHTML = html
+    cena.appendChild(d)
+    return d
+  }
+  function frente(pontos, z) {
+    var d = document.createElement('div')
+    d.className = 'frente'
+    d.style.zIndex = z
+    d.style.clipPath = 'polygon(' + pontos.map(function (p) { return (p[0] * SX).toFixed(1) + 'px ' + (p[1] * SY).toFixed(1) + 'px' }).join(', ') + ')'
+    cena.appendChild(d)
+  }
+
+  var CASA = {}, MESA = {}
+  MESAS.forEach(function (m) {
+    MESA[m.id] = m
+    var atras = m.atras.map(function (p) { return L(p[0], p[1], m.nome, { atras: true }) })
+    m.zFrente = Math.round((Math.max.apply(null, m.atras.map(function (p) { return p[1] })) + 6) * SY)
+    m.lugaresXY = atras.concat(m.bancos.map(function (p) { return L(p[0], p[1], m.nome) }))
+    m.livres = m.lugaresXY.slice(0)
+  })
+  var REUNIAO = MESA['mesa-grande'].lugaresXY.slice(0)
+  ;[[400, 520], [945, 520], [392, 600], [962, 600], [560, 432], [620, 432], [760, 432], [820, 432], [410, 670], [950, 670]].forEach(function (p) { REUNIAO.push(L(p[0], p[1], 'Reunião')) })
+
+  // cada agente pega um lugar livre na sala que escolheu; sala cheia ou errada: Mesa Grande; tudo cheio: em pé no salão
+  function lugarPara(g) {
+    if (g.sala === 'porta' && PORTA.length) return PORTA.shift()
+    var m = MESA[g.sala]
+    if (m && m.livres.length) return m.livres.shift()
+    if (MESA['mesa-grande'].livres.length) return MESA['mesa-grande'].livres.shift()
+    return L(400 + Math.random() * 560, 700, 'Taverna')
+  }
+
+  function montarCena() {
+    cena.innerHTML = ''
+    MESAS.forEach(function (m) { frente(m.frente, m.zFrente) })
+    peca(gato, 345 * SX, 400 * SY, 0.75, 400 * SY)
+    peca(mesaConselho, CONS.mesa.x, CONS.mesa.y, 0.9, CONS.mesa.z)
+    var p = document.getElementById('poeira'), h = ''
+    semente = 17
+    for (var i = 0; i < 20; i++) h += '<i class="grao" style="left:' + (560 + rnd() * 520).toFixed(0) + 'px;top:' + (180 + rnd() * 420).toFixed(0) + 'px;animation-duration:' + (9 + rnd() * 10).toFixed(1) + 's;animation-delay:-' + (rnd() * 18).toFixed(1) + 's"></i>'
+    for (i = 0; i < 8; i++) h += '<i class="faisca" style="left:' + (145 + rnd() * 40).toFixed(0) + 'px;top:470px;--dx:' + (rnd() * 30 - 15).toFixed(0) + 'px;animation-delay:-' + (rnd() * 2.6).toFixed(1) + 's"></i>'
+    p.innerHTML = h
+  }
+
+  function arte(id, pose) { return 'arte/agentes/' + encodeURIComponent(id) + '/' + pose + '.png' }
+  function criarAtor(g) {
+    var id = g.id
+    if (A[id]) return
+    var casa = CASA[id] = lugarPara(g)
+    var el = document.createElement('div')
+    var sprite = !!g.sprite
+    el.className = 'ator'
+    el.dataset.id = id
+    el.innerHTML = '<div class="balao"></div><div class="corpo">' +
+      (sprite ? '<img src="' + arte(id, 'parado') + '" alt="" draggable="false">' : figura(id)) +
+      '</div><b class="nome">' + esc(g.nome || id) + '</b><span class="zzz">z</span>'
+    el.addEventListener('click', function (e) { e.stopPropagation(); ficha(id) })
+    cena.appendChild(el)
+    var a = A[id] = { id: id, nome: g.nome || id, el: el, img: el.querySelector('img'), sprite: sprite, poses: g.poses || ['parado'] }
+    // sprite que não carregou: troca pelo bonequinho desenhado
+    if (a.img) a.img.addEventListener('error', function () { if (a.img.src.indexOf('/parado.png') >= 0) { a.sprite = false; a.img.outerHTML = figura(id); a.img = null } })
+    colocar(a, casa)
+    ;(function ciclo() { setTimeout(function () { agir(a); ciclo() }, 4000 + Math.random() * 6000) })()
+    setTimeout(function () { agir(a) }, 300 + Math.random() * 1500)
+  }
+  function colocar(a, p) {
+    a.el.style.left = p.x + 'px'; a.el.style.top = p.y + 'px'
+    a.el.style.setProperty('--k', p.k); a.el.style.setProperty('--e', p.k); a.el.style.zIndex = p.z
+    a.lugar = p
+  }
+  function pose(a, p) {
+    if (!a.sprite || !a.img) return
+    a.img.src = arte(a.id, a.poses.indexOf(p) >= 0 ? p : 'parado')
+  }
+  // de dia a turma alterna entre trabalhar, beber e o gesto de cada um; de noite cochila
+  function agir(a) {
+    if (a.movendo) return
+    var r = Math.random()
+    a.el.classList.remove('zz')
+    a.el.classList.toggle('vira', !!a.lugar.flip)
+    if (conselho && CONS.lugares[a.id]) { pose(a, r < 0.6 ? 'parado' : 'trabalhando'); var fc = CC.falas || []; if (r < 0.35 && fc.length) falar(a, fc[Math.floor(Math.random() * fc.length)]); return }
+    if (noiteAgora && !reuniao) { pose(a, r < 0.7 ? 'cochilando' : 'bebendo'); a.el.classList.add('zz'); return }
+    if (reuniao) pose(a, r < 0.5 ? 'parado' : 'bebendo')
+    else pose(a, ['bebendo', 'parado', 'trabalhando', 'trabalhando', AG[a.id].especial || 'bebendo'][Math.floor(r * 5)])
+    if (Math.random() < 0.2) falar(a)
+  }
+  function falar(a, texto) {
+    var f = AG[a.id].falas || [], b = a.el.querySelector('.balao')
+    if (!texto && !f.length) return
+    b.textContent = texto || f[Math.floor(Math.random() * f.length)]
+    b.classList.add('mostra'); clearTimeout(a.tb)
+    a.tb = setTimeout(function () { b.classList.remove('mostra') }, 2800)
+  }
+  function mover(a, p) {
+    var de = a.lugar.x
+    a.movendo = true
+    a.el.classList.remove('zz'); a.el.classList.add('anda'); a.el.classList.toggle('vira', p.x < de)
+    pose(a, 'andando1')
+    colocar(a, p)
+    setTimeout(function () { a.movendo = false; a.el.classList.remove('anda'); agir(a) }, 2700)
+  }
+  var quadro = 1
+  setInterval(function () {
+    quadro = 3 - quadro
+    for (var id in A) { var a = A[id]; if (a.movendo && a.sprite && a.img && a.poses.indexOf('andando' + quadro) >= 0) a.img.src = arte(id, 'andando' + quadro) }
+  }, 280)
+
+  function reunir(sim) {
+    reuniao = sim
+    var b = document.getElementById('reuniao')
+    b.textContent = sim ? T.botaoEncerrar : T.botaoReuniao; b.classList.toggle('ativo', sim)
+    Object.keys(A).forEach(function (id, i) { setTimeout(function () { mover(A[id], sim ? (REUNIAO[i] || CASA[id]) : CASA[id]) }, i * 120) })
+    if (sim) irPara(680 * SX)
+    escreverQuem()
+  }
+  document.getElementById('reuniao').onclick = function () {
+    if (!reuniao && conselho) { conselhoReunir(false); setTimeout(function () { reunir(true) }, 2900) } else reunir(!reuniao)
+  }
+
+  // ================= Reunião do Conselho: os membros do config vão para a mesa redonda =================
+  function conselhoReunir(sim) {
+    if (sim && reuniao) { reunir(false); setTimeout(function () { conselhoReunir(true) }, 2900); return }
+    conselho = sim
+    var b = document.getElementById('btConselho')
+    b.textContent = sim ? T.botaoEncerrar : T.botaoConselho; b.classList.toggle('ativo', sim)
+    CONS.membros.forEach(function (id, i) { setTimeout(function () { mover(A[id], sim ? CONS.lugares[id] : CASA[id]) }, i * 250) })
+    if (sim) { irPara(330 * SX); setTimeout(function () { mostrar('ata', true) }, 3000) } else mostrar('ata', false)
+    escreverQuem()
+  }
+  document.getElementById('btConselho').onclick = function () { conselhoReunir(!conselho) }
+  if (!CONS.membros.length) document.getElementById('btConselho').style.display = 'none'
+
+  function desenharAta() {
+    document.getElementById('ata').innerHTML = '<button class="fechar" data-fecha="ata">✖</button>' +
+      '<h3>' + esc(T.conselhoTitulo) + '</h3><p class="sub">' + CONS.membros.map(function (id) { return esc(AG[id].nome || id) }).join(' · ') + '</p>' +
+      '<p>' + esc(CC.texto) + '</p>'
+  }
+
+  // ================= pergaminhos =================
+  function mostrar(qual, sim) {
+    ;['ficha', 'lista', 'ata'].forEach(function (p) { if (p !== qual && sim) document.getElementById(p).classList.remove('mostra') })
+    document.getElementById(qual).classList.toggle('mostra', sim)
+    document.getElementById('btLista').classList.toggle('ativo', qual === 'lista' ? sim : document.getElementById('lista').classList.contains('mostra'))
+    if (qual !== 'ficha' || !sim) marcar(null)
+    if (qual === 'lista' && sim) montarLista()
+    if (qual === 'ata' && sim) desenharAta()
+  }
+  document.addEventListener('click', function (e) {
+    var f = e.target.closest && e.target.closest('[data-fecha]')
+    if (f) { e.stopPropagation(); mostrar(f.dataset.fecha, false) }
+  })
+  ;['ficha', 'lista', 'ata'].forEach(function (p) { document.getElementById(p).addEventListener('click', function (e) { e.stopPropagation() }) })
+  function marcar(id) {
+    if (selecionado && A[selecionado]) A[selecionado].el.classList.remove('sel')
+    selecionado = id
+    if (id && A[id]) A[id].el.classList.add('sel')
+  }
+  function ficha(id) {
+    var f = document.getElementById('ficha'), a = A[id]
+    f.innerHTML = '<button class="fechar" data-fecha="ficha">✖</button><h3>' + esc(a.nome) + '</h3><p>' + esc(AG[id].cargo) + '</p><p>📍 ' + esc(a.lugar.onde || 'Taverna') +
+      '</p><span class="st">' + status(id) + '</span>'
+    mostrar('ficha', true)
+    marcar(id)
+    falar(a)
+  }
+  document.getElementById('palco').addEventListener('click', function () { mostrar('ficha', false) })
+
+  function status(id) { return conselho && CONS.lugares[id] ? T.stConselho : reuniao ? T.stReuniao : noiteAgora ? T.stDescanso : T.stTaverna }
+
+  // organograma: cada agente fica embaixo do "chefe" dele; sem chefe (ou chefe que não existe), fica embaixo de você
+  function chefeDe(id) { var c = AG[id].chefe; return c && AG[c] && c !== id ? c : 'voce' }
+  function montarLista() {
+    var el = document.getElementById('lista'), vistos = {}
+    function ramo(id) {
+      if (vistos[id]) return ''
+      vistos[id] = true
+      var filhos = Object.keys(AG).filter(function (f) { return chefeDe(f) === id })
+      var linha = id === 'voce' ? '<b>' + esc(T.voce) + '</b> <small>' + esc(T.voceFaz) + '</small>' :
+        '<b>' + esc(AG[id].nome || id) + '</b> <small>' + esc(AG[id].cargo) + '</small> <i class="st">' + status(id) + '</i>'
+      return '<li><span class="no" data-id="' + esc(id) + '">' + linha + '</span>' +
+        (filhos.length ? '<ul>' + filhos.map(ramo).join('') + '</ul>' : '') + '</li>'
+    }
+    el.innerHTML = '<button class="fechar" data-fecha="lista">✖</button><h3>' + esc(T.organograma) + '</h3><p class="resumo">' + esc(T.organogramaDica) + '</p><ul class="raiz">' + ramo('voce') + '</ul>'
+    el.querySelectorAll('.no').forEach(function (l) {
+      if (A[l.dataset.id]) l.onclick = function (e) { e.stopPropagation(); var a = A[l.dataset.id]; irPara(a.lugar.x); ficha(l.dataset.id) }
+    })
+  }
+  document.getElementById('btLista').onclick = function () { mostrar('lista', !document.getElementById('lista').classList.contains('mostra')) }
+
+  // ================= encaixar o palco: "perto" enche a altura e arrasta; "inteira" cabe tudo =================
+  var inteira = false, escala = 1
+  function encaixar() {
+    var j = document.getElementById('janela'), w = j.clientWidth, h = j.clientHeight
+    var centro = (j.scrollLeft + w / 2) / (escala * 1600) || 0.5
+    escala = inteira ? Math.min(w / 1600, h / 900) : Math.max(w / 1600, h / 900)
+    var m = document.getElementById('mundo')
+    m.style.width = Math.floor(1600 * escala) + 'px'; m.style.height = Math.floor(900 * escala) + 'px'
+    document.getElementById('palco').style.transform = 'scale(' + escala + ')'
+    j.scrollLeft = centro * 1600 * escala - w / 2
+    j.scrollTop = (900 * escala - h) / 2
+  }
+  function irPara(xPalco) {
+    var j = document.getElementById('janela')
+    j.scrollTo({ left: xPalco * escala - j.clientWidth / 2, behavior: 'smooth' })
+  }
+  document.getElementById('btVer').onclick = function () { inteira = !inteira; this.classList.toggle('ativo', inteira); encaixar() }
+  addEventListener('resize', encaixar)
+  addEventListener('orientationchange', function () { setTimeout(encaixar, 300) })
+  var dica = document.getElementById('dica')
+  document.getElementById('janela').addEventListener('scroll', function () { dica.style.opacity = 0 }, { passive: true })
+  setTimeout(function () { dica.style.opacity = 0 }, 6000)
+
+  // ================= relógio, dia e noite =================
+  function escreverQuem() {
+    var q = document.getElementById('quem')
+    q.innerHTML = conselho ? '<span class="ouro">' + esc(T.emConselho) + '</span>' : reuniao ? '<span class="ouro">' + esc(T.emReuniao) + '</span>' :
+      noiteAgora ? '<span class="apagado">' + esc(T.noite) + '</span>' : '<span class="apagado">' + esc(T.dia) + '</span>'
+  }
+  function tique() {
+    document.getElementById('relogio').textContent = new Date().toLocaleTimeString(T.idioma || 'pt-BR', { hour: '2-digit', minute: '2-digit' })
+    var hora = new Date().getHours(), noite = hora >= 18 || hora < 6
+    if (noite !== noiteAgora) {
+      noiteAgora = noite
+      document.getElementById('luz').innerHTML = luzes(noite)
+      document.getElementById('palco').classList.toggle('noite', noite)
+      escreverQuem()
+    }
+  }
+
+  montarCena()
+  tique()
+  Object.keys(AG).forEach(function (id) { criarAtor(AG[id]) })
+  encaixar()
+  irPara(680 * SX)
+  setInterval(tique, 1000)
+
+  // funciona offline depois da primeira visita
+  if ('serviceWorker' in navigator) addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}) })
+</script>
+</body>
+</html>
